@@ -492,13 +492,8 @@
     // 因为 lastSentDate 只要有值了，_rpDaysSinceLastSent() 就不会再返回 Infinity，
     // 自然就会掉进下面的正常阶梯，不用额外记一个"是否脱离过"的标记
     function _rpFallbackProb() {
-        var days = _rpDaysSinceLastSent();
-        if (days === Infinity) return 0.1;
-        if (days < 3) return 0.03;
-        if (days <= 5) return 0.2;
-        if (days <= 9) return 0.4;
-        return 0.9;
-    }
+            return 0.005; // 无论是新账号还是老账号，梦角主动发红包的概率统一改为 0.5%
+        }
 
     // 主判定入口——Step 2 会把这个函数接到 core.js 里跟拍一拍同一个判定点上。
     // 现在先单独导出，方便控制台直接调用验证。
@@ -516,19 +511,22 @@
     //     都不是 → 按"连续多少天没发"的兜底阶梯概率，文案走普通留言库
     //
     // 返回 null = 这次没触发；返回 {special} = 触发了，special 非空时是特殊文案的信息
-    async function evaluatePartnerTrigger() {
-        if (!_loaded) await _load();
-        if (_isGatedByOtherModes()) return null; // 陪伴模式/观影模式期间不判定
-        // 相遇日期以用户修改后的为准：这份覆盖数据原本只在打开情侣空间时才加载，没打开过就会退回首条消息的日期
-        try { if (typeof window._annLoadMeetOverride === 'function') await window._annLoadMeetOverride(); } catch (e) {}
-        _rpEnsureSchedulerShape();
-        var today = _rpTodayStr();
-
-        var primary = _rpCheckPrimarySpecial();               // 节日/纪念日（互斥，纪念日优先）
-        // 纪念日（里程碑/倒数日）不受"每天最多3个"这个上限约束，一定要发；
-        // 节日不算在内，节日还是跟其它红包一起挤这3个名额
-        var isAnnHit = !!primary && primary.kind !== 'festival';
-
+        async function evaluatePartnerTrigger() {
+            // ▼▼▼ 新增：0.5% 概率拦截，如果不中直接返回，不往下执行 ▼▼▼
+            if (Math.random() >= 0.005) return null;
+            // ▲▲▲ 新增结束 ▲▲▲
+    
+            if (!_loaded) await _load();
+            if (_isGatedByOtherModes()) return null; // 陪伴模式/观影模式期间不判定
+            // 相遇日期以用户修改后的为准：这份覆盖数据原本只在打开情侣空间时才加载，没打开过就会退回首条消息的日期
+            try { if (typeof window._annLoadMeetOverride === 'function') await window._annLoadMeetOverride(); } catch (e) {}
+            _rpEnsureSchedulerShape();
+            var today = _rpTodayStr();
+    
+            var primary = _rpCheckPrimarySpecial();               // 节日/纪念日（互斥，纪念日优先）
+            // 纪念日（里程碑/倒数日）不受"每天最多3个"这个上限约束，一定要发；
+            // 节日不算在内，节日还是跟其它红包一起挤这3个名额
+            var isAnnHit = !!primary && primary.kind !== 'festival';
         if (!isAnnHit && _data.scheduler.dailyCount >= 3) return null; // 今天3个名额已经用完（纪念日不受此约束，跳过这道闸门）
 
         var periodSpecial = await _rpCheckPeriod();            // 经期第一天（今天真的记录了才会非空）
